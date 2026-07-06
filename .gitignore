@@ -1,5 +1,4 @@
 # Data
-corpus.json
 *.csv.bak
 
 # Model checkpoints & outputs

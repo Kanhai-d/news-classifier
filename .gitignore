@@ -1,0 +1,23 @@
+# Data
+corpus.json
+*.csv.bak
+
+# Model checkpoints & outputs
+results/
+logs/
+best_model/
+final_model/
+checkpoint-*/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Environment
+.env
+venv/
+.venv/
+
+# OS
+.DS_Store

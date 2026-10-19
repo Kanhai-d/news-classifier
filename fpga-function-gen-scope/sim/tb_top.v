@@ -1,7 +1,7 @@
 // Full design test. Runs 3 frames, saves the last frame as a picture file
 // and checks that the trace reaches every one of the 512 plot columns.
 // The Pmod DA2 output is wired to the Pmod AD1 input through simple models,
-// so with SW7 = 1 the whole loop DDS -> DAC -> ADC -> scope -> VGA is tested.
+// so with SW6 = 1 the whole loop DDS -> DAC -> ADC -> scope -> VGA is tested.
 //
 // Plusargs:  +SW=<hex switch value>   +OUT=<ppm file name>
 `timescale 1ns/1ps
@@ -9,17 +9,16 @@ module tb_top;
     reg clk = 0;
     always #5 clk = ~clk;
 
-    reg  [7:0] sw = 8'h2C;          // sine, 1 kHz, time scale 1
+    reg  [6:0] sw = 7'h14;          // sine, 1 kHz, 4 ms time scale, generator input
     reg        btnc = 1;
-    wire [7:0] led;
     wire [3:0] vga_r, vga_g, vga_b;
     wire       vga_hs, vga_vs;
-    wire       da2_sync, da2_dina, da2_dinb, da2_sclk;
+    wire       da2_sync, da2_dina, da2_sclk;
     wire       ad1_cs, ad1_d0, ad1_sclk;
 
-    top dut (.clk(clk), .sw(sw), .btnc(btnc), .led(led),
+    top dut (.clk(clk), .sw(sw), .btnc(btnc),
              .vga_r(vga_r), .vga_g(vga_g), .vga_b(vga_b), .vga_hs(vga_hs), .vga_vs(vga_vs),
-             .da2_sync(da2_sync), .da2_dina(da2_dina), .da2_dinb(da2_dinb), .da2_sclk(da2_sclk),
+             .da2_sync(da2_sync), .da2_dina(da2_dina), .da2_sclk(da2_sclk),
              .ad1_cs(ad1_cs), .ad1_d0(ad1_d0), .ad1_sclk(ad1_sclk));
 
     // Jumper wire from DA2 output A to AD1 input A
@@ -61,8 +60,8 @@ module tb_top;
     integer swarg;
 
     initial begin
-        if (!$value$plusargs("SW=%h", swarg)) swarg = 8'h2C;
-        sw = swarg[7:0];
+        if (!$value$plusargs("SW=%h", swarg)) swarg = 7'h14;
+        sw = swarg[6:0];
         if (!$value$plusargs("OUT=%s", outname)) outname = "frame.ppm";
 
         repeat (20) @(posedge clk);
@@ -100,10 +99,9 @@ module tb_top;
         // check: sample tick every 200 clocks (500 kHz)
         check_tick(200);
 
-        // check: the DAC got frames and the LED meter shows a full scale wave
-        $display("DAC frames=%0d  LEDs=%b", dac_frames, led);
+        // check: the DAC got a frame for every sample
+        $display("DAC frames=%0d", dac_frames);
         if (dac_frames < 20000) begin $display("FAIL: too few DAC frames"); errors = errors + 1; end
-        if (led !== 8'hFF) begin $display("FAIL: LED meter should be full"); errors = errors + 1; end
 
         if (errors == 0) $display("tb_top PASS"); else $display("tb_top FAIL (%0d errors)", errors);
         $finish;

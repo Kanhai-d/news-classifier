@@ -1,25 +1,21 @@
 `timescale 1ns / 1ps
 // ZedBoard function generator and digital oscilloscope.
 //
-// Function generator: DDS core -> Pmod DA2 (DAC) on port JA -> analog output.
-// Oscilloscope:       Pmod AD1 (ADC) on port JB, or the generator itself -> capture FSM
-//                     -> sample RAM -> VGA screen.
+// Function generator: DDS core, then Pmod DA2 (DAC) on port JA, analog output.
+// Oscilloscope:       Pmod AD1 (ADC) on port JB, or the generator itself, then the
+//                     capture FSM, the sample RAM and the VGA screen.
 // Connect the DA2 output to the AD1 input with a jumper wire to see the real analog wave.
 //
 // Switches:
-//   SW1 SW0      wave        00 sine, 01 square, 10 triangle, 11 sawtooth
-//   SW4 SW3 SW2  frequency   000 100 Hz, 001 200 Hz, 010 500 Hz, 011 1 kHz,
-//                            100 2 kHz, 101 5 kHz, 110 10 kHz, 111 20 kHz
-//   SW6 SW5      time scale  00 1 ms on screen, 01 4 ms, 10 16 ms, 11 65 ms
-//   SW7          scope input 0 = generator (inside the FPGA), 1 = Pmod AD1 (outside signal)
+//   SW1 SW0  wave         00 sine, 01 square, 10 triangle, 11 sawtooth
+//   SW3 SW2  frequency    00 100 Hz, 01 1 kHz, 10 5 kHz, 11 20 kHz
+//   SW5 SW4  time scale   00 1 ms on screen, 01 4 ms, 10 16 ms, 11 65 ms
+//   SW6      scope input  0 = generator (inside the FPGA), 1 = Pmod AD1
 // BTNC resets the design.
-// LEDs: level meter. The number of LEDs on shows the highest input value in the last
-//       screen frame (8 LEDs = full scale, 3.3 V on the AD1).
 module top (
     input  wire       clk,        // 100 MHz
-    input  wire [7:0] sw,
+    input  wire [6:0] sw,
     input  wire       btnc,
-    output reg  [7:0] led,
     output wire [3:0] vga_r,
     output wire [3:0] vga_g,
     output wire [3:0] vga_b,
@@ -28,7 +24,6 @@ module top (
     // Pmod DA2 on JA (pins 1 to 4)
     output wire       da2_sync,
     output wire       da2_dina,
-    output wire       da2_dinb,
     output wire       da2_sclk,
     // Pmod AD1 on JB (pins 1, 2 and 4)
     output wire       ad1_cs,
@@ -36,9 +31,9 @@ module top (
     output wire       ad1_sclk
 );
     // Inputs
-    wire [7:0] sw_s;
+    wire [6:0] sw_s;
     wire       rst;
-    sync2 #(.WIDTH(8)) u_sync_sw  (.clk(clk), .d(sw),   .q(sw_s));
+    sync2 #(.WIDTH(7)) u_sync_sw  (.clk(clk), .d(sw),   .q(sw_s));
     sync2 #(.WIDTH(1)) u_sync_rst (.clk(clk), .d(btnc), .q(rst));
 
     // Clock enables: 500 kHz sample rate and 25 MHz pixel rate
@@ -63,14 +58,10 @@ module top (
     // Frequency table: ftw = f * 2^32 / 500 kHz
     reg [31:0] ftw;
     always @(*) begin
-        case (sw_s[4:2])
-            3'd0:    ftw = 32'd858993;      // 100 Hz
-            3'd1:    ftw = 32'd1717987;     // 200 Hz
-            3'd2:    ftw = 32'd4294967;     // 500 Hz
-            3'd3:    ftw = 32'd8589935;     // 1 kHz
-            3'd4:    ftw = 32'd17179869;    // 2 kHz
-            3'd5:    ftw = 32'd42949673;    // 5 kHz
-            3'd6:    ftw = 32'd85899346;    // 10 kHz
+        case (sw_s[3:2])
+            2'd0:    ftw = 32'd858993;      // 100 Hz
+            2'd1:    ftw = 32'd8589935;     // 1 kHz
+            2'd2:    ftw = 32'd42949673;    // 5 kHz
             default: ftw = 32'd171798692;   // 20 kHz
         endcase
     end
@@ -84,14 +75,11 @@ module top (
 
     // Pmod DA2: one 16 bit frame per sample. Frame = 2 unused bits, 2 power down bits
     // (00 = normal) and 12 data bits. The 8 bit sample is stretched to 12 bits.
-    wire da2_mosi;
     spi_master16 u_da2 (
         .clk(clk), .rst(rst), .start(sample_ce_d),
         .tx({4'b0000, gen_sample, gen_sample[7:4]}), .rx(), .done(),
-        .cs_n(da2_sync), .sclk(da2_sclk), .mosi(da2_mosi), .miso(1'b0)
+        .cs_n(da2_sync), .sclk(da2_sclk), .mosi(da2_dina), .miso(1'b0)
     );
-    assign da2_dina = da2_mosi;     // output A
-    assign da2_dinb = da2_mosi;     // output B gives the same wave
 
     // Pmod AD1: one 16 bit frame per sample. Frame = 4 zeros and 12 data bits.
     wire [15:0] ad1_word;
@@ -106,7 +94,7 @@ module top (
         if (ad1_done) adc_sample <= ad1_word[11:4];     // keep the top 8 of 12 bits
 
     // Scope input select
-    wire [7:0] scope_in = sw_s[7] ? adc_sample : gen_sample;
+    wire [7:0] scope_in = sw_s[6] ? adc_sample : gen_sample;
 
     // VGA timing
     wire [9:0] hcount, vcount;
@@ -125,7 +113,7 @@ module top (
     wire       disp_bank;
     scope_capture u_capture (
         .clk(clk), .rst(rst), .sample_ce(sample_ce),
-        .sample(scope_in), .timebase(sw_s[6:5]),
+        .sample(scope_in), .timebase(sw_s[5:4]),
         .frame_tick(frame_tick),
         .we(we), .waddr(waddr), .wdata(wdata),
         .disp_bank(disp_bank)
@@ -147,20 +135,4 @@ module top (
         .red(vga_r), .green(vga_g), .blue(vga_b)
     );
 
-    // LED level meter: find the highest input value in each screen frame,
-    // then light one LED for every 32 steps (8 LEDs = 255).
-    reg [7:0] peak = 8'd0;
-    integer i;
-    always @(posedge clk) begin
-        if (rst) begin
-            peak <= 8'd0;
-            led  <= 8'd0;
-        end else if (frame_tick) begin
-            for (i = 0; i < 8; i = i + 1)
-                led[i] <= (peak > i * 32);
-            peak <= 8'd0;
-        end else if (sample_ce && scope_in > peak) begin
-            peak <= scope_in;
-        end
-    end
 endmodule

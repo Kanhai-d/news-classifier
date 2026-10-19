@@ -5,7 +5,7 @@ The generator puts out a real analog wave through a Pmod DA2.
 The scope measures a real analog signal through a Pmod AD1 and draws it on a VGA monitor.
 Join the two with a jumper wire and the scope shows the generator's own output.
 
-The design also works with no Pmods at all: set SW7 to 0 and the scope looks at the
+The design also works with no Pmods at all: set SW6 to 0 and the scope looks at the
 generator inside the FPGA.
 
 ![Simulated screen, sine wave through the DA2 and AD1](docs/sim_ad1_sine.png)
@@ -14,9 +14,9 @@ generator inside the FPGA.
 
 | Part | Port | Job |
 | --- | --- | --- |
-| ZedBoard (Zynq-7020) | | All the logic, switches, LEDs, button, VGA port |
-| Pmod DA2 (two 12 bit DACs) | JA, top row | Analog output of the generator, 0 to 3.3 V |
-| Pmod AD1 (two 12 bit ADCs) | JB, top row | Analog input of the scope, 0 to 3.3 V |
+| ZedBoard (Zynq-7020) | | All the logic, switches, reset button, VGA port |
+| Pmod DA2 (12 bit DAC, output A used) | JA, top row | Analog output of the generator, 0 to 3.3 V |
+| Pmod AD1 (12 bit ADC, input A used) | JB, top row | Analog input of the scope, 0 to 3.3 V |
 | VGA monitor and cable | VGA | Shows the scope screen |
 | 2 jumper wires | | DA2 output A to AD1 input A, and GND to GND |
 
@@ -28,29 +28,13 @@ Pmod AD1 before you connect the jumper wires. Keep the AD1 input between 0 and 3
 | Control | Function |
 | --- | --- |
 | SW1 SW0 | Wave: 00 sine, 01 square, 10 triangle, 11 sawtooth |
-| SW4 SW3 SW2 | Frequency: 000 100 Hz, 001 200 Hz, 010 500 Hz, 011 1 kHz, 100 2 kHz, 101 5 kHz, 110 10 kHz, 111 20 kHz |
-| SW6 SW5 | Time scale (whole screen width): 00 1 ms, 01 4 ms, 10 16 ms, 11 65 ms |
-| SW7 | Scope input: 0 the generator inside the FPGA, 1 the Pmod AD1 |
+| SW3 SW2 | Frequency: 00 100 Hz, 01 1 kHz, 10 5 kHz, 11 20 kHz |
+| SW5 SW4 | Time scale (whole screen width): 00 1 ms, 01 4 ms, 10 16 ms, 11 65 ms |
+| SW6 | Scope input: 0 the generator inside the FPGA, 1 the Pmod AD1 |
 | BTNC (center button) | Reset |
-| LD0 to LD7 | Level meter (see below) |
 
-Tip: 1 kHz with time scale 01 shows 4 cycles. 100 Hz with time scale 11 shows about 6 cycles.
-20 kHz with time scale 00 shows about 20 cycles.
-
-### What the LEDs show
-
-The LEDs are a level meter for the scope input. Once per screen frame (60 times a second)
-the design finds the highest sample of that frame and lights one LED for every 32 steps.
-
-| Highest sample | Voltage on the AD1 | LEDs on |
-| --- | --- | --- |
-| 0 | 0 V | none |
-| 1 to 32 | up to about 0.4 V | LD0 |
-| 129 to 160 | up to about 2.1 V | LD0 to LD4 |
-| 225 to 255 | up to 3.3 V | all 8 |
-
-A full size wave from the generator lights all 8 LEDs. With SW7 = 1 and nothing connected
-to the AD1, fewer LEDs light up. This makes it easy to see if the jumper wire is in place.
+Good settings: 100 Hz with 65 ms (about 6 cycles), 1 kHz with 4 ms (4 cycles),
+5 kHz with 1 ms (5 cycles), 20 kHz with 1 ms (about 20 cycles).
 
 ## Folder map
 
@@ -66,7 +50,7 @@ to the AD1, fewer LEDs light up. This makes it easy to see if the jumper wire is
 
 | File | Job |
 | --- | --- |
-| `top.v` | Connects everything. Makes the 500 kHz sample tick, the 25 MHz pixel tick and the LED meter. |
+| `top.v` | Connects everything. Makes the 500 kHz sample tick and the 25 MHz pixel tick. |
 | `sync2.v` | Two flip flop synchronizer for the switches and the button. |
 | `dds.v` | Phase counter and wave maker. |
 | `sine_rom.v` | 256 entry sine table (made by `scripts/gen_sine_rom.py`). |
@@ -107,7 +91,7 @@ python3 scripts/ppm_to_png.py build/sim/frame_*.ppm
 | `tb_spi` | SPI frames to a DAC model and from an ADC model, 16 clock edges, 12.5 MHz |
 | `tb_capture` | Saved samples, time scale, bank swap and time out |
 | `tb_vga_timing` | Line length, frame length and sync widths |
-| `tb_top` | Full design with the DA2 wired to the AD1. Saves a VGA frame, checks the trace in all 512 columns, the sample rate and the LED meter |
+| `tb_top` | Full design with the DA2 wired to the AD1. Saves a VGA frame, checks the trace in all 512 columns and the sample rate |
 
 ## Simulate in Vivado
 
@@ -127,7 +111,7 @@ python3 scripts/ppm_to_png.py build/sim/frame_*.ppm
    Connect DA2 output A to AD1 input A, and GND to GND.
 4. Connect the PROG micro USB port to the PC, connect a VGA monitor, and switch the board on.
 5. Open Hardware Manager, click Open Target > Auto Connect, then Program Device.
-6. Set SW7 to 1 and move the other switches. The screen shows the real analog wave.
+6. Set SW6 to 1 and move the other switches. The screen shows the real analog wave.
 
 From a terminal: `vivado -mode batch -source scripts/build.tcl`, then
 `vivado -mode batch -source scripts/program.tcl`.
@@ -138,6 +122,7 @@ Only the FPGA part (PL) is used. The ARM processor is not used, so no Vitis step
 
 * Pins and IO standards in `constraints/zedboard.xdc` match Digilent's official Zedboard-Master.xdc.
 * The design was checked in simulation and with a 7-series synthesis run
-  (about 800 cells and 1 block RAM). It has not yet been run on a real board.
+  (about 760 cells and 1 block RAM). It has not yet been run on a real board.
 * The monitor gets a 25.0 MHz pixel clock instead of the exact 25.175 MHz. Almost all monitors accept this.
 * The sample rate is 500 kHz, so the 20 kHz wave has 25 samples per cycle.
+* The LEDs are not used.

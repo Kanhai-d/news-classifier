@@ -47,3 +47,14 @@ set_property -dict {PACKAGE_PIN AB19 IOSTANDARD LVCMOS33} [get_ports {vga_b[3]}]
 set_property -dict {PACKAGE_PIN AA19 IOSTANDARD LVCMOS33} [get_ports vga_hs]
 set_property -dict {PACKAGE_PIN Y19  IOSTANDARD LVCMOS33} [get_ports vga_vs]
 
+
+## Pmod DA2 on JA (top row, pins 1 to 4). Bank 13 is fixed at 3.3 V.
+set_property -dict {PACKAGE_PIN Y11  IOSTANDARD LVCMOS33} [get_ports da2_sync]
+set_property -dict {PACKAGE_PIN AA11 IOSTANDARD LVCMOS33} [get_ports da2_dina]
+set_property -dict {PACKAGE_PIN Y10  IOSTANDARD LVCMOS33} [get_ports da2_dinb]
+set_property -dict {PACKAGE_PIN AA9  IOSTANDARD LVCMOS33} [get_ports da2_sclk]
+
+## Pmod AD1 on JB (top row, pins 1, 2 and 4). Pin 3 (D1, second channel) is not used.
+set_property -dict {PACKAGE_PIN W12  IOSTANDARD LVCMOS33} [get_ports ad1_cs]
+set_property -dict {PACKAGE_PIN W11  IOSTANDARD LVCMOS33} [get_ports ad1_d0]
+set_property -dict {PACKAGE_PIN W8   IOSTANDARD LVCMOS33} [get_ports ad1_sclk]

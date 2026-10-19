@@ -4,19 +4,20 @@
 set -e
 cd "$(dirname "$0")/.."
 mkdir -p build/sim
-RTL="rtl/sine_rom.v rtl/sync2.v rtl/dds.v rtl/sample_ram.v rtl/scope_capture.v rtl/vga_timing.v rtl/vga_display.v rtl/top.v"
+RTL="rtl/sine_rom.v rtl/sync2.v rtl/dds.v rtl/spi_master16.v rtl/sample_ram.v rtl/scope_capture.v rtl/vga_timing.v rtl/vga_display.v rtl/top.v sim/pmod_models.v"
 fail=0
 
-for tb in tb_dds tb_capture tb_vga_timing; do
+for tb in tb_dds tb_spi tb_capture tb_vga_timing; do
     echo "=== $tb ==="
     iverilog -g2005 -Wall -Wno-timescale -o build/sim/$tb.vvp sim/$tb.v $RTL
     vvp -n build/sim/$tb.vvp | tee build/sim/$tb.log
     grep -q "PASS" build/sim/$tb.log || fail=1
 done
 
-# Full design, four wave shapes (SW1 SW0), picture saved for each.
+# Full design. Four wave shapes from the generator (SW7 = 0), then the
+# DA2 to AD1 loop (SW7 = 1). A picture is saved for each.
 iverilog -g2005 -Wall -Wno-timescale -o build/sim/tb_top.vvp sim/tb_top.v $RTL
-for cfg in "2C:sine" "2D:square" "2E:triangle" "2F:sawtooth"; do
+for cfg in "2C:sine" "2D:square" "2E:triangle" "2F:sawtooth" "AC:ad1_sine" "AD:ad1_square"; do
     sw=${cfg%%:*}; name=${cfg##*:}
     echo "=== tb_top ($name) ==="
     vvp -n build/sim/tb_top.vvp +SW=$sw +OUT=build/sim/frame_$name.ppm | tee build/sim/tb_top_$name.log

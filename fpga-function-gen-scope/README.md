@@ -1,14 +1,27 @@
 # FPGA Function Generator and Digital Oscilloscope (ZedBoard)
 
-A basic function generator and a basic digital oscilloscope made fully inside the FPGA.
-No extra hardware is needed. You only need the ZedBoard and a VGA monitor.
+A function generator and a digital oscilloscope built inside the ZedBoard FPGA.
+The generator puts out a real analog wave through a Pmod DA2.
+The scope measures a real analog signal through a Pmod AD1 and draws it on a VGA monitor.
+Join the two with a jumper wire and the scope shows the generator's own output.
 
-## What it does
+The design also works with no Pmods at all: set SW7 to 0 and the scope looks at the
+generator inside the FPGA.
 
-* The function generator makes a sine, square, triangle or sawtooth wave.
-* The scope reads that wave, waits for it to go up through the middle level,
-  saves 512 samples and draws them on the VGA monitor.
-* The 8 LEDs show the generator output.
+![Simulated screen, sine wave through the DA2 and AD1](docs/sim_ad1_sine.png)
+
+## Hardware
+
+| Part | Port | Job |
+| --- | --- | --- |
+| ZedBoard (Zynq-7020) | | All the logic, switches, LEDs, button, VGA port |
+| Pmod DA2 (two 12 bit DACs) | JA, top row | Analog output of the generator, 0 to 3.3 V |
+| Pmod AD1 (two 12 bit ADCs) | JB, top row | Analog input of the scope, 0 to 3.3 V |
+| VGA monitor and cable | VGA | Shows the scope screen |
+| 2 jumper wires | | DA2 output A to AD1 input A, and GND to GND |
+
+Check the J2 header pin labels in the Digilent reference manuals for the Pmod DA2 and
+Pmod AD1 before you connect the jumper wires. Keep the AD1 input between 0 and 3.3 V.
 
 ## Controls
 
@@ -16,32 +29,48 @@ No extra hardware is needed. You only need the ZedBoard and a VGA monitor.
 | --- | --- |
 | SW1 SW0 | Wave: 00 sine, 01 square, 10 triangle, 11 sawtooth |
 | SW4 SW3 SW2 | Frequency: 000 100 Hz, 001 200 Hz, 010 500 Hz, 011 1 kHz, 100 2 kHz, 101 5 kHz, 110 10 kHz, 111 20 kHz |
-| SW6 SW5 | Time scale: 00 about 0.5 ms on screen, 01 2 ms, 10 8 ms, 11 33 ms |
-| SW7 | Slow mode: every frequency becomes 1000 times lower (100 Hz becomes 0.1 Hz), so you can watch the wave on the LEDs |
+| SW6 SW5 | Time scale (whole screen width): 00 1 ms, 01 4 ms, 10 16 ms, 11 65 ms |
+| SW7 | Scope input: 0 the generator inside the FPGA, 1 the Pmod AD1 |
 | BTNC (center button) | Reset |
-| LD7 to LD0 | The 8 bit generator output |
+| LD0 to LD7 | Level meter (see below) |
 
-Tip: for about two cycles on the screen, use 1 kHz with time scale 01, 100 Hz with time scale 11
-(a bit over three cycles), or 10 kHz with time scale 00 (about five cycles).
+Tip: 1 kHz with time scale 01 shows 4 cycles. 100 Hz with time scale 11 shows about 6 cycles.
+20 kHz with time scale 00 shows about 20 cycles.
+
+### What the LEDs show
+
+The LEDs are a level meter for the scope input. Once per screen frame (60 times a second)
+the design finds the highest sample of that frame and lights one LED for every 32 steps.
+
+| Highest sample | Voltage on the AD1 | LEDs on |
+| --- | --- | --- |
+| 0 | 0 V | none |
+| 1 to 32 | up to about 0.4 V | LD0 |
+| 129 to 160 | up to about 2.1 V | LD0 to LD4 |
+| 225 to 255 | up to 3.3 V | all 8 |
+
+A full size wave from the generator lights all 8 LEDs. With SW7 = 1 and nothing connected
+to the AD1, fewer LEDs light up. This makes it easy to see if the jumper wire is in place.
 
 ## Folder map
 
 | Folder | What is inside |
 | --- | --- |
 | `rtl/` | The Verilog design |
-| `sim/` | The testbenches |
+| `sim/` | The testbenches and simple Pmod models |
 | `constraints/` | The ZedBoard pin file |
-| `scripts/` | Build, simulation and helper scripts |
+| `scripts/` | Vivado and simulation scripts |
 | `docs/` | Pictures made by the simulation |
 
 ### Verilog files
 
 | File | Job |
 | --- | --- |
-| `top.v` | Connects everything. Makes the 1 MHz sample tick and the 25 MHz pixel tick. |
+| `top.v` | Connects everything. Makes the 500 kHz sample tick, the 25 MHz pixel tick and the LED meter. |
 | `sync2.v` | Two flip flop synchronizer for the switches and the button. |
 | `dds.v` | Phase counter and wave maker. |
 | `sine_rom.v` | 256 entry sine table (made by `scripts/gen_sine_rom.py`). |
+| `spi_master16.v` | 16 bit SPI master at 12.5 MHz, used for both the DA2 and the AD1. |
 | `scope_capture.v` | The capture FSM: WAIT, CAPTURE, DONE. |
 | `sample_ram.v` | 2 banks of 512 samples. One is written while the other is shown. |
 | `vga_timing.v` | 640 by 480 at 60 Hz timing. |
@@ -49,35 +78,36 @@ Tip: for about two cycles on the screen, use 1 kHz with time scale 01, 100 Hz wi
 
 ## How it works
 
-* The generator adds a number (the frequency tuning word) to a 32 bit counter 1 million times a second.
-  The top 8 bits of the counter make the wave.
-  The output frequency is `ftw * 1 MHz / 2^32`.
-* The capture FSM looks at the generator samples. A counter skips samples to change the time scale.
-  When the wave crosses 128 going up, the FSM saves 512 samples.
-  If no crossing is seen for a long time, it starts anyway so the screen never freezes.
-* The FSM writes into one RAM bank. The screen reads the other bank.
-  The banks swap once per screen frame, in the blank time, so the trace does not tear.
-* The VGA pixel rate is 25 MHz. It is made with a clock enable on the 100 MHz clock, so the whole design uses one clock.
+* **Generator.** 500 000 times a second, a 32 bit counter grows by a fixed number (the
+  frequency tuning word). The top 8 bits of the counter make the wave.
+  Output frequency = `ftw * 500 kHz / 2^32`.
+* **DA2.** After each new sample, the SPI master sends one 16 bit frame to the DAC:
+  2 unused bits, 2 power down bits (00 = on) and 12 data bits.
+* **AD1.** At the same time a second SPI master reads one 16 bit frame from the ADC:
+  4 zeros and then 12 data bits. The top 8 bits are kept.
+* **Capture FSM.** It looks at the scope input. A counter skips samples to set the time scale.
+  When the wave goes up through the middle level (128, about 1.65 V) the FSM saves 512 samples.
+  If no crossing comes for a long time, it starts anyway so the screen never freezes.
+* **Two RAM banks.** The FSM writes one bank while the screen reads the other.
+  They swap once per frame, during the blank time, so the trace does not tear.
+* **VGA.** 640 by 480 at 60 Hz. The 25 MHz pixel rate is a clock enable on the 100 MHz clock,
+  so the whole design runs on one clock.
 
-## Run the simulation
-
-Install Icarus Verilog (`sudo apt install iverilog`) and run:
+## Run the simulation (Icarus Verilog)
 
 ```
+sudo apt install iverilog
 bash scripts/run_sim.sh
 python3 scripts/ppm_to_png.py build/sim/frame_*.ppm
 ```
 
-The tests are:
-
 | Test | What it checks |
 | --- | --- |
 | `tb_dds` | Range and frequency of all four waves |
+| `tb_spi` | SPI frames to a DAC model and from an ADC model, 16 clock edges, 12.5 MHz |
 | `tb_capture` | Saved samples, time scale, bank swap and time out |
 | `tb_vga_timing` | Line length, frame length and sync widths |
-| `tb_top` | Full design. Saves a VGA frame, checks the trace is complete in all 512 columns, and checks the sample tick in normal and slow mode |
-
-The simulated screen for each wave is in `docs/` (for example `docs/sim_sine.png`).
+| `tb_top` | Full design with the DA2 wired to the AD1. Saves a VGA frame, checks the trace in all 512 columns, the sample rate and the LED meter |
 
 ## Simulate in Vivado
 
@@ -91,22 +121,23 @@ The simulated screen for each wave is in `docs/` (for example `docs/sim_sine.png
 
 ## Build and run on the ZedBoard
 
-1. In the same project, click Generate Bitstream. Vivado runs synthesis and implementation first.
-2. Set the ZedBoard boot jumpers (JP7 to JP11) to JTAG mode (all to GND). Check that the VADJ jumper J18 is on 1.8 V.
-3. Connect the PROG micro USB port to the PC, connect a VGA monitor, and switch the board on.
-4. Open Hardware Manager, click Open Target > Auto Connect, then Program Device and pick the bitstream.
-5. Move the switches and watch the screen. Turn on SW7 to watch the wave slowly on the LEDs.
+1. In the same project, click Generate Bitstream.
+2. Set the boot jumpers JP7 to JP11 to JTAG mode (all to GND). Check that the VADJ jumper J18 is on 1.8 V.
+3. Plug the Pmod DA2 into JA (top row) and the Pmod AD1 into JB (top row).
+   Connect DA2 output A to AD1 input A, and GND to GND.
+4. Connect the PROG micro USB port to the PC, connect a VGA monitor, and switch the board on.
+5. Open Hardware Manager, click Open Target > Auto Connect, then Program Device.
+6. Set SW7 to 1 and move the other switches. The screen shows the real analog wave.
 
-You can also build and program from a terminal:
-`vivado -mode batch -source scripts/build.tcl` and then `vivado -mode batch -source scripts/program.tcl`.
+From a terminal: `vivado -mode batch -source scripts/build.tcl`, then
+`vivado -mode batch -source scripts/program.tcl`.
 
-This design only uses the FPGA part (PL). The ARM processor is not used, so no SDK or Vitis step is needed.
+Only the FPGA part (PL) is used. The ARM processor is not used, so no Vitis step is needed.
 
 ## Things to know
 
-* The generator samples at 1 MHz, so the 20 kHz wave has 50 samples per cycle.
-* The scope reads the generator inside the FPGA. It does not measure outside signals.
-* The pins and IO standards in `constraints/zedboard.xdc` match Digilent's official Zedboard-Master.xdc.
-* The design was checked in simulation and with a 7-series synthesis run (about 500 cells and 1 block RAM).
-  It has not yet been run on a real board.
+* Pins and IO standards in `constraints/zedboard.xdc` match Digilent's official Zedboard-Master.xdc.
+* The design was checked in simulation and with a 7-series synthesis run
+  (about 800 cells and 1 block RAM). It has not yet been run on a real board.
 * The monitor gets a 25.0 MHz pixel clock instead of the exact 25.175 MHz. Almost all monitors accept this.
+* The sample rate is 500 kHz, so the 20 kHz wave has 25 samples per cycle.

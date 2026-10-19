@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // Two flip flop synchronizer for slow inputs such as switches and buttons.
 module sync2 #(
     parameter WIDTH = 1

@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // Function generator core (direct digital synthesis).
 // A 32 bit phase counter grows by "ftw" on every sample_ce pulse.
 // The top 8 bits of the counter make the wave.

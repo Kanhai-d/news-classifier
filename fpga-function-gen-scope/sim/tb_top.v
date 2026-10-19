@@ -32,6 +32,16 @@ module tb_top;
     end
 
     integer errors = 0;
+    integer t0, t1;
+
+    task check_tick(input integer expected);
+        begin
+            @(posedge dut.sample_ce); t0 = $time;
+            @(posedge dut.sample_ce); t1 = $time;
+            $display("sample tick every %0d clocks (expected %0d)", (t1 - t0) / 10, expected);
+            if ((t1 - t0) / 10 != expected) errors = errors + 1;
+        end
+    endtask
     integer x, y, f, hits, missing, total_green;
     reg [255:0] outname;
     integer swarg;
@@ -72,6 +82,13 @@ module tb_top;
             for (x = 0; x < 640; x = x + 1)
                 $fwrite(f, "%0d %0d %0d\n", frame[y*640+x][11:8], frame[y*640+x][7:4], frame[y*640+x][3:0]);
         $fclose(f);
+
+        // check: sample tick every 100 clocks, and every 100000 clocks in slow mode
+        check_tick(100);
+        sw[7] = 1'b1;
+        repeat (200100) @(posedge clk);
+        check_tick(100000);
+        sw[7] = 1'b0;
 
         if (errors == 0) $display("tb_top PASS"); else $display("tb_top FAIL (%0d errors)", errors);
         $finish;

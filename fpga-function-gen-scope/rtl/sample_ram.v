@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // Simple dual port RAM: 1024 words of 8 bits.
 // Two banks of 512 words. The capture FSM writes one bank
 // while the VGA block reads the other bank.

@@ -1,6 +1,8 @@
 ## ZedBoard pin file for the function generator and oscilloscope.
-## Please compare these pins with the official ZedBoard master XDC from Digilent
-## before you program the board. Switch banks use 1.8 V when VADJ is at its default.
+## Pins and IO standards match the official Digilent Zedboard-Master.xdc.
+## Banks 34 and 35 (button and switches) use LVCMOS18, which needs the VADJ
+## jumper J18 on its default 1.8 V setting. If J18 is set to 2.5 V or 3.3 V,
+## change those lines to LVCMOS25 or LVCMOS33.
 
 ## 100 MHz clock
 set_property -dict {PACKAGE_PIN Y9 IOSTANDARD LVCMOS33} [get_ports clk]
@@ -44,3 +46,4 @@ set_property -dict {PACKAGE_PIN AB20 IOSTANDARD LVCMOS33} [get_ports {vga_b[2]}]
 set_property -dict {PACKAGE_PIN AB19 IOSTANDARD LVCMOS33} [get_ports {vga_b[3]}]
 set_property -dict {PACKAGE_PIN AA19 IOSTANDARD LVCMOS33} [get_ports vga_hs]
 set_property -dict {PACKAGE_PIN Y19  IOSTANDARD LVCMOS33} [get_ports vga_vs]
+

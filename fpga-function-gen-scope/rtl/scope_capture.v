@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // Capture FSM of the oscilloscope.
 //
 //   S_WAIT    : look for the wave crossing the trigger level while going up.

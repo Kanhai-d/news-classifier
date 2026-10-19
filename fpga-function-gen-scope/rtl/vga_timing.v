@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // VGA timing for 640 x 480 at 60 Hz.
 // The 25 MHz pixel rate comes from a clock enable (pix_ce) on the 100 MHz clock.
 // Sync pulses are active low. hsync and vsync are one pixel late

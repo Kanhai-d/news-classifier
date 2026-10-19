@@ -7,6 +7,7 @@ The table is centered on 128 and swings from 1 to 255.
 import math
 
 lines = []
+lines.append("`timescale 1ns / 1ps")
 lines.append("// Made by scripts/gen_sine_rom.py. Do not edit by hand.")
 lines.append("module sine_rom (")
 lines.append("    input  wire [7:0] addr,")

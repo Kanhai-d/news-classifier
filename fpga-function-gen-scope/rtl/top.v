@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // ZedBoard function generator and digital oscilloscope. Only the board is needed.
 //
 // Switches:
@@ -5,7 +6,8 @@
 //   SW4 SW3 SW2  frequency  000 100 Hz, 001 200 Hz, 010 500 Hz, 011 1 kHz,
 //                           100 2 kHz, 101 5 kHz, 110 10 kHz, 111 20 kHz
 //   SW6 SW5  time scale  00 fastest (512 us on screen), 01 2 ms, 10 8 ms, 11 33 ms
-//   SW7      spare
+//   SW7      slow mode: samples at 1 kHz instead of 1 MHz, so every frequency
+//            is 1000 times lower and the wave can be watched on the LEDs
 // BTNC resets the design.
 // LEDs show the 8 bit generator output.
 module top (
@@ -25,17 +27,18 @@ module top (
     sync2 #(.WIDTH(8)) u_sync_sw  (.clk(clk), .d(sw),   .q(sw_s));
     sync2 #(.WIDTH(1)) u_sync_rst (.clk(clk), .d(btnc), .q(rst));
 
-    // Clock enables: 1 MHz sample rate and 25 MHz pixel rate
-    reg [6:0] sample_div = 7'd0;
-    reg       sample_ce  = 1'b0;
-    reg [1:0] pix_div    = 2'd0;
-    reg       pix_ce     = 1'b0;
+    // Clock enables: 1 MHz sample rate (1 kHz in slow mode) and 25 MHz pixel rate
+    wire [16:0] sample_last = sw_s[7] ? 17'd99999 : 17'd99;
+    reg  [16:0] sample_div = 17'd0;
+    reg         sample_ce  = 1'b0;
+    reg  [1:0]  pix_div    = 2'd0;
+    reg         pix_ce     = 1'b0;
     always @(posedge clk) begin
-        if (sample_div == 7'd99) begin
-            sample_div <= 7'd0;
+        if (sample_div >= sample_last) begin
+            sample_div <= 17'd0;
             sample_ce  <= 1'b1;
         end else begin
-            sample_div <= sample_div + 7'd1;
+            sample_div <= sample_div + 17'd1;
             sample_ce  <= 1'b0;
         end
         pix_div <= pix_div + 2'd1;

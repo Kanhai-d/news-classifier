@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // Made by scripts/gen_sine_rom.py. Do not edit by hand.
 module sine_rom (
     input  wire [7:0] addr,

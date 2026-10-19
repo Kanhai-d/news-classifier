@@ -1,3 +1,4 @@
+`timescale 1ns / 1ps
 // Draws the grid and the trace.
 //
 // Plot area: 512 x 256 pixels, top left corner at (64, 112).

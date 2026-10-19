@@ -17,7 +17,7 @@ No extra hardware is needed. You only need the ZedBoard and a VGA monitor.
 | SW1 SW0 | Wave: 00 sine, 01 square, 10 triangle, 11 sawtooth |
 | SW4 SW3 SW2 | Frequency: 000 100 Hz, 001 200 Hz, 010 500 Hz, 011 1 kHz, 100 2 kHz, 101 5 kHz, 110 10 kHz, 111 20 kHz |
 | SW6 SW5 | Time scale: 00 about 0.5 ms on screen, 01 2 ms, 10 8 ms, 11 33 ms |
-| SW7 | Not used |
+| SW7 | Slow mode: every frequency becomes 1000 times lower (100 Hz becomes 0.1 Hz), so you can watch the wave on the LEDs |
 | BTNC (center button) | Reset |
 | LD7 to LD0 | The 8 bit generator output |
 
@@ -75,25 +75,38 @@ The tests are:
 | `tb_dds` | Range and frequency of all four waves |
 | `tb_capture` | Saved samples, time scale, bank swap and time out |
 | `tb_vga_timing` | Line length, frame length and sync widths |
-| `tb_top` | Full design. Saves a VGA frame and checks the trace is complete in all 512 columns |
+| `tb_top` | Full design. Saves a VGA frame, checks the trace is complete in all 512 columns, and checks the sample tick in normal and slow mode |
 
 The simulated screen for each wave is in `docs/` (for example `docs/sim_sine.png`).
 
+## Simulate in Vivado
+
+1. Open Vivado. Pick Tools > Run Tcl Script and choose `scripts/create_project.tcl`.
+   This makes the project `build/vivado_project/zed_scope.xpr` with all files added.
+2. Click Run Simulation > Run Behavioral Simulation. The default test is `tb_top`.
+   It runs to the end by itself (about 52 ms of sim time, so it can take a few minutes).
+3. Read the result in the Tcl Console. It ends with `tb_top PASS`.
+4. To run another test, right click it under Simulation Sources and pick Set as Top.
+5. The picture `frame.ppm` is saved in `build/vivado_project/zed_scope.sim/sim_1/behav/xsim/`.
+
 ## Build and run on the ZedBoard
 
-1. Install Vivado (any recent version with Zynq-7000 support).
-2. Check the pins in `constraints/zedboard.xdc` against the official ZedBoard master XDC.
-3. Build: `vivado -mode batch -source scripts/build.tcl`
-4. Connect the ZedBoard with the JTAG/PROG USB cable and a VGA monitor, then power it on.
-5. Program: `vivado -mode batch -source scripts/program.tcl`
-   (or use Hardware Manager in the Vivado window and pick `build/vivado/top.bit`).
-6. Move the switches and watch the screen.
+1. In the same project, click Generate Bitstream. Vivado runs synthesis and implementation first.
+2. Set the ZedBoard boot jumpers (JP7 to JP11) to JTAG mode (all to GND). Check that the VADJ jumper J18 is on 1.8 V.
+3. Connect the PROG micro USB port to the PC, connect a VGA monitor, and switch the board on.
+4. Open Hardware Manager, click Open Target > Auto Connect, then Program Device and pick the bitstream.
+5. Move the switches and watch the screen. Turn on SW7 to watch the wave slowly on the LEDs.
 
-This design only uses the FPGA part (PL). The ARM processor is not used.
+You can also build and program from a terminal:
+`vivado -mode batch -source scripts/build.tcl` and then `vivado -mode batch -source scripts/program.tcl`.
+
+This design only uses the FPGA part (PL). The ARM processor is not used, so no SDK or Vitis step is needed.
 
 ## Things to know
 
 * The generator samples at 1 MHz, so the 20 kHz wave has 50 samples per cycle.
 * The scope reads the generator inside the FPGA. It does not measure outside signals.
-* The sim and the board show the same picture, but the board result has not been tested in this repository.
-  The pin file was written from memory of the ZedBoard documents, so check it before use.
+* The pins and IO standards in `constraints/zedboard.xdc` match Digilent's official Zedboard-Master.xdc.
+* The design was checked in simulation and with a 7-series synthesis run (about 500 cells and 1 block RAM).
+  It has not yet been run on a real board.
+* The monitor gets a 25.0 MHz pixel clock instead of the exact 25.175 MHz. Almost all monitors accept this.
